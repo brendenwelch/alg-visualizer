@@ -1,8 +1,8 @@
 const sdl = @import("sdl3");
 const std = @import("std");
 
-const WINDOW_WIDTH = 640;
-const WINDOW_HEIGHT = 480;
+const WINDOW_WIDTH = 1200;
+const WINDOW_HEIGHT = 675;
 
 /// May want to use different allocator.
 const allocator = std.heap.c_allocator;
@@ -72,6 +72,12 @@ pub fn iterate(app_state: *AppState) !sdl.AppResult {
 pub fn eventHandler(app_state: *AppState, event: sdl.events.Event) !sdl.AppResult {
     _ = app_state;
     switch (event) {
+        .key_down => {
+            switch (event.key_down.key.?) {
+                .escape => return .success,
+                else => {},
+            }
+        },
         .terminating => return .success,
         .quit => return .success,
         else => {},
