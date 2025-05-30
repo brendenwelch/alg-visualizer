@@ -20,10 +20,7 @@ const AppState = struct {
 ///
 /// ## Return Value
 /// Returns if the app should continue running, or result in success or failure.
-pub fn init(
-    app_state: *?*AppState,
-    args: [][*:0]u8,
-) !sdl.AppResult {
+pub fn init(app_state: *?*AppState, args: [][*:0]u8) !sdl.AppResult {
     _ = args;
 
     // Prepare app state.
@@ -57,9 +54,7 @@ pub fn init(
 ///
 /// ## Return Value
 /// Returns if the app should continue running, or result in success or failure.
-pub fn iterate(
-    app_state: *AppState,
-) !sdl.AppResult {
+pub fn iterate(app_state: *AppState) !sdl.AppResult {
     try app_state.renderer.setDrawColor(.{ .r = 128, .g = 30, .b = 255 });
     try app_state.renderer.clear();
     try app_state.renderer.present();
@@ -74,10 +69,7 @@ pub fn iterate(
 ///
 /// ## Return Value
 /// Returns if the app should continue running, or result in success or failure.
-pub fn eventHandler(
-    app_state: *AppState,
-    event: sdl.events.Event,
-) !sdl.AppResult {
+pub fn eventHandler(app_state: *AppState, event: sdl.events.Event) !sdl.AppResult {
     _ = app_state;
     switch (event) {
         .terminating => return .success,
@@ -92,10 +84,7 @@ pub fn eventHandler(
 /// ## Function Parameters
 /// * `app_state`: Application state if it was set by `init()`, or `null` if `init()` did not set it (because of say an error).
 /// * `result`: Result indicating the success of the application. Should never be `AppResult.run`.
-pub fn quit(
-    app_state: ?*AppState,
-    result: sdl.AppResult,
-) void {
+pub fn quit(app_state: ?*AppState, result: sdl.AppResult) void {
     _ = result;
     if (app_state) |val| {
         val.renderer.deinit();
