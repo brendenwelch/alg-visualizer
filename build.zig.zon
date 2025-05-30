@@ -1,0 +1,17 @@
+.{
+    .name = .alg_visualizer,
+    .version = "0.0.0",
+    .minimum_zig_version = "0.14.1-dev.111+8a5f83424",
+    .dependencies = .{
+        .sdl3 = .{
+            .url = "git+https://github.com/Gota7/zig-sdl3?ref=master#c83e8710a7ed9ccd25740a4b590fce25cb1a1c06",
+            .hash = "sdl3-0.0.1-NmT1Q4sEHABxbjr2358rVpTQaR290WqUZREGNvPc_yj4",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+    .fingerprint = 0x5217efc918734257, // Changing this has security and trust implications.
+}
