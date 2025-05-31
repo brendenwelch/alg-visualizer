@@ -11,9 +11,9 @@ const allocator = gpa.allocator();
 const AppState = struct {
     window: sdl.video.Window,
     renderer: sdl.render.Renderer,
-    data: []sdl.rect.FRect,
-    animations: std.ArrayList(Animation),
     last_tick: u64,
+    data: std.ArrayList(u32),
+    animations: std.ArrayList(Animation),
 };
 
 const AnimationKind = enum {
@@ -50,32 +50,24 @@ pub fn init(app_state: *?*AppState, args: [][*:0]u8) !sdl.AppResult {
     errdefer window_renderer.renderer.deinit();
     errdefer window_renderer.window.deinit();
 
+    // Create data
+    const data = try generateData(91, 50);
+
+    // Generate animation queue
+    var animations = std.ArrayList(Animation).init(allocator);
+    errdefer animations.deinit();
+    // Use .insert(0, a)
+
     // Set app state.
     state.* = .{
         .window = window_renderer.window,
         .renderer = window_renderer.renderer,
-        .data = undefined,
-        .animations = undefined,
-        .last_tick = undefined,
+        .data = data,
+        .animations = animations,
+        .last_tick = sdl.timer.getMillisecondsSinceInit(),
     };
     app_state.* = state;
 
-    // Create data.
-    var data: []sdl.rect.FRect = try allocator.alloc(sdl.rect.FRect, 20);
-    for (data, 0..) |_, i| {
-        data[i] = .{
-            .h = @floatFromInt(10 * (i + 1)),
-            .w = 10,
-            .x = @floatFromInt(PADDING + (i * 12)),
-            .y = PADDING,
-        };
-    }
-    app_state.*.?.data = data;
-
-    // Sort data, returning queue of animations.
-    app_state.*.?.animations = std.ArrayList(Animation).init(allocator);
-
-    app_state.*.?.last_tick = sdl.timer.getMillisecondsSinceInit();
     return .run;
 }
 
@@ -88,20 +80,15 @@ pub fn init(app_state: *?*AppState, args: [][*:0]u8) !sdl.AppResult {
 /// Returns if the app should continue running, or result in success or failure.
 pub fn iterate(app_state: *AppState) !sdl.AppResult {
     const this_tick = sdl.timer.getMillisecondsSinceInit();
-    // Don't start until some reasonable delay.
     if (this_tick > 5000) {
         // Pop first animation from queue.
-        var next: Animation = undefined;
-        if (app_state.animations.items.len > 0) {
-            next = app_state.animations.orderedRemove(0);
-        }
+        const next: Animation = app_state.animations.pop() orelse Animation{
+            .indexes = .{ 0, 1 },
+            .kind = .swap,
+        };
         // Apply animation to data.
         switch (next.kind) {
-            .swap => {
-                const tmp = app_state.data[next.indexes[0]];
-                app_state.data[next.indexes[0]] = app_state.data[next.indexes[1]];
-                app_state.data[next.indexes[1]] = tmp;
-            },
+            .swap => {},
             else => {},
         }
     }
@@ -109,7 +96,14 @@ pub fn iterate(app_state: *AppState) !sdl.AppResult {
     try app_state.renderer.setDrawColor(.{ .r = 200, .g = 200, .b = 200 });
     try app_state.renderer.clear();
     try app_state.renderer.setDrawColor(.{ .r = 50, .g = 50, .b = 50 });
-    try app_state.renderer.renderFillRects(app_state.data);
+    for (app_state.data.items, 0..) |val, i| {
+        try app_state.renderer.renderFillRect(sdl.rect.FRect{
+            .h = @floatFromInt(val * 10),
+            .w = 10,
+            .x = @floatFromInt(PADDING + i * 12),
+            .y = PADDING,
+        });
+    }
     try app_state.renderer.present();
 
     // Wait until a minimum tick delay has passed
@@ -136,6 +130,9 @@ pub fn eventHandler(app_state: *AppState, event: sdl.events.Event) !sdl.AppResul
         .key_down => {
             switch (event.key_down.key.?) {
                 .escape => return .success,
+                //.r => {
+                // Remove all animations and generate new data.
+                //}
                 else => {},
             }
         },
@@ -157,21 +154,30 @@ pub fn quit(app_state: ?*AppState, result: sdl.AppResult) void {
         state.renderer.deinit();
         state.window.deinit();
         state.animations.deinit();
-        allocator.free(state.data);
+        state.data.deinit();
         allocator.destroy(state);
     }
 }
 
 //=---Helpers---==
-fn generateData(len: usize) []u8 {
-    // Generate list of random numbers, with length of `len`.
-    return .{ 5, len };
+fn generateData(len: usize, max: u32) !std.ArrayList(u32) {
+    var data = std.ArrayList(u32).init(allocator);
+    errdefer data.deinit();
+    for (0..len) |_| {
+        try data.append(std.crypto.random.intRangeAtMost(u32, 1, max));
+    }
+    return data;
 }
 
-fn bubbleSort(arr: []u8) []Animation {
-    _ = arr;
-    return [_]Animation{
-        .{ .kind = .swap, .indexes = .{ 5, 2 } },
-        .{ .kind = .swap, .indexes = .{ 1, 5 } },
-    };
+fn bubbleSort(app_state: *AppState) !void {
+    _ = app_state;
+    // Copy data.
+    // Sort data.
+    // Prepend animations.
+}
+
+fn findMax(list: std.ArrayList(u32)) !u32 {
+    if (list.items.len == 0) {
+        return error.ListEmpty;
+    }
 }
