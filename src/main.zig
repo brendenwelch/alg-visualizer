@@ -187,20 +187,23 @@ fn generateData(len: u32) !std.ArrayList(u32) {
 fn bubbleSort(app_state: *AppState) !void {
     const copy: std.ArrayList(u32) = try app_state.data.clone();
     const len: usize = copy.items.len;
-
-    var changed: bool = true;
-    while (changed) {
-        changed = false;
+    var ordered: bool = false;
+    while (!ordered) {
+        // Assume ordered until a swap occurs.
+        ordered = true;
+        // Compare order of adjacent indexes.
         for (0..len - 1, 1..len) |i, j| {
             if (copy.items[i] > copy.items[j]) {
+                // Push animation.
                 try app_state.animations.insert(0, Animation{
                     .kind = .swap,
                     .indexes = .{ i, j },
                 });
+                // Swap data.
                 const tmp = copy.items[i];
                 copy.items[i] = copy.items[j];
                 copy.items[j] = tmp;
-                changed = true;
+                ordered = false;
             }
         }
     }
