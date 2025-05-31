@@ -20,6 +20,7 @@ const AnimationKind = enum {
     compare,
     swap,
 };
+
 const Animation = struct {
     kind: AnimationKind,
     indexes: [2]usize,
@@ -50,13 +51,13 @@ pub fn init(app_state: *?*AppState, args: [][*:0]u8) !sdl.AppResult {
     errdefer window_renderer.renderer.deinit();
     errdefer window_renderer.window.deinit();
 
-    // Create data
-    const data = try generateData(91, 50);
+    // Create and generate data.
+    var data = try generateData(200);
+    errdefer data.deinit();
 
-    // Generate animation queue
+    // Create animations queue.
     var animations = std.ArrayList(Animation).init(allocator);
     errdefer animations.deinit();
-    // Use .insert(0, a)
 
     // Set app state.
     state.* = .{
@@ -66,7 +67,11 @@ pub fn init(app_state: *?*AppState, args: [][*:0]u8) !sdl.AppResult {
         .animations = animations,
         .last_tick = sdl.timer.getMillisecondsSinceInit(),
     };
+    errdefer state.animations.deinit();
     app_state.* = state;
+
+    // Fill animation queue.
+    try bubbleSort(app_state.*.?);
 
     return .run;
 }
@@ -84,11 +89,15 @@ pub fn iterate(app_state: *AppState) !sdl.AppResult {
         // Pop first animation from queue.
         const next: Animation = app_state.animations.pop() orelse Animation{
             .indexes = .{ 0, 1 },
-            .kind = .swap,
+            .kind = .compare,
         };
         // Apply animation to data.
         switch (next.kind) {
-            .swap => {},
+            .swap => {
+                const tmp = app_state.data.items[next.indexes[0]];
+                app_state.data.items[next.indexes[0]] = app_state.data.items[next.indexes[1]];
+                app_state.data.items[next.indexes[1]] = tmp;
+            },
             else => {},
         }
     }
@@ -96,20 +105,27 @@ pub fn iterate(app_state: *AppState) !sdl.AppResult {
     try app_state.renderer.setDrawColor(.{ .r = 200, .g = 200, .b = 200 });
     try app_state.renderer.clear();
     try app_state.renderer.setDrawColor(.{ .r = 50, .g = 50, .b = 50 });
+    const len: f32 = @as(f32, @floatFromInt(app_state.data.items.len));
     for (app_state.data.items, 0..) |val, i| {
+        const height_ratio = @as(f32, @floatFromInt(val)) / len;
+        const max_height: f32 = WINDOW_HEIGHT - (2 * PADDING);
+        const max_width: f32 = WINDOW_WIDTH - (2 * PADDING);
+        const bar_width: f32 = @divFloor(max_width, len);
+        const padding = PADDING + (max_width - (bar_width * len)) / 2;
         try app_state.renderer.renderFillRect(sdl.rect.FRect{
-            .h = @floatFromInt(val * 10),
-            .w = 10,
-            .x = @floatFromInt(PADDING + i * 12),
-            .y = PADDING,
+            .h = max_height * height_ratio,
+            .w = bar_width,
+            .x = padding + @as(f32, @floatFromInt(i)) * bar_width,
+            .y = PADDING + (max_height * (1 - height_ratio)),
         });
     }
     try app_state.renderer.present();
 
     // Wait until a minimum tick delay has passed
+    const tick_min = 1;
     const tick_delta = this_tick - app_state.last_tick;
-    if (tick_delta < 1000) {
-        sdl.timer.delayMilliseconds(@intCast(1000 - tick_delta));
+    if (tick_delta < tick_min) {
+        sdl.timer.delayMilliseconds(@intCast(tick_min - tick_delta));
     }
     app_state.last_tick = sdl.timer.getMillisecondsSinceInit();
 
@@ -160,24 +176,32 @@ pub fn quit(app_state: ?*AppState, result: sdl.AppResult) void {
 }
 
 //=---Helpers---==
-fn generateData(len: usize, max: u32) !std.ArrayList(u32) {
+fn generateData(len: u32) !std.ArrayList(u32) {
     var data = std.ArrayList(u32).init(allocator);
-    errdefer data.deinit();
     for (0..len) |_| {
-        try data.append(std.crypto.random.intRangeAtMost(u32, 1, max));
+        try data.append(std.crypto.random.intRangeAtMost(u32, 1, len));
     }
     return data;
 }
 
 fn bubbleSort(app_state: *AppState) !void {
-    _ = app_state;
-    // Copy data.
-    // Sort data.
-    // Prepend animations.
-}
+    const copy: std.ArrayList(u32) = try app_state.data.clone();
+    const len: usize = copy.items.len;
 
-fn findMax(list: std.ArrayList(u32)) !u32 {
-    if (list.items.len == 0) {
-        return error.ListEmpty;
+    var changed: bool = true;
+    while (changed) {
+        changed = false;
+        for (0..len - 1, 1..len) |i, j| {
+            if (copy.items[i] > copy.items[j]) {
+                try app_state.animations.insert(0, Animation{
+                    .kind = .swap,
+                    .indexes = .{ i, j },
+                });
+                const tmp = copy.items[i];
+                copy.items[i] = copy.items[j];
+                copy.items[j] = tmp;
+                changed = true;
+            }
+        }
     }
 }
