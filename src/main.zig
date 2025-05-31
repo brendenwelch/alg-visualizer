@@ -8,6 +8,9 @@ const PADDING = 50;
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 const allocator = gpa.allocator();
 
+var sort_start: u64 = 0;
+var sort_end: u64 = 0;
+
 const AppState = struct {
     window: sdl.video.Window,
     renderer: sdl.render.Renderer,
@@ -72,6 +75,7 @@ pub fn init(app_state: *?*AppState, args: [][*:0]u8) !sdl.AppResult {
 
     // Fill animation queue.
     try bubbleSort(app_state.*.?);
+    //try insertionSort(app_state.*.?);
 
     return .run;
 }
@@ -86,6 +90,9 @@ pub fn init(app_state: *?*AppState, args: [][*:0]u8) !sdl.AppResult {
 pub fn iterate(app_state: *AppState) !sdl.AppResult {
     const this_tick = sdl.timer.getMillisecondsSinceInit();
     if (this_tick > 5000) {
+        if (sort_start == 0) {
+            sort_start = this_tick;
+        }
         // Pop first animation from queue.
         const next: Animation = app_state.animations.pop() orelse Animation{
             .indexes = .{ 0, 1 },
@@ -98,7 +105,12 @@ pub fn iterate(app_state: *AppState) !sdl.AppResult {
                 app_state.data.items[next.indexes[0]] = app_state.data.items[next.indexes[1]];
                 app_state.data.items[next.indexes[1]] = tmp;
             },
-            else => {},
+            else => {
+                if (sort_end == 0) {
+                    sort_end = this_tick;
+                    std.debug.print(" Took {d} seconds.\n", .{(sort_end - sort_start) / 1000});
+                }
+            },
         }
     }
     // Render data.
@@ -189,10 +201,8 @@ fn bubbleSort(app_state: *AppState) !void {
     const len: usize = copy.items.len;
     var ordered: bool = false;
     while (!ordered) {
-        // Assume ordered until a swap occurs.
         ordered = true;
-        // Compare order of adjacent indexes.
-        for (0..len - 1, 1..len) |i, j| {
+        for (0..(len - 1), 1..len) |i, j| {
             if (copy.items[i] > copy.items[j]) {
                 // Push animation.
                 try app_state.animations.insert(0, Animation{
@@ -207,4 +217,29 @@ fn bubbleSort(app_state: *AppState) !void {
             }
         }
     }
+    std.debug.print("Bubble Sort:\n Requires {d} swaps.\n", .{app_state.animations.items.len});
+}
+
+fn insertionSort(app_state: *AppState) !void {
+    const copy: std.ArrayList(u32) = try app_state.data.clone();
+    const len: usize = copy.items.len;
+    for (0..len) |i| {
+        if (i + 1 == len) {
+            break;
+        }
+        for ((i + 1)..len) |j| {
+            if (copy.items[i] > copy.items[j]) {
+                // Push animation.
+                try app_state.animations.insert(0, Animation{
+                    .kind = .swap,
+                    .indexes = .{ i, j },
+                });
+                // Swap data.
+                const tmp = copy.items[i];
+                copy.items[i] = copy.items[j];
+                copy.items[j] = tmp;
+            }
+        }
+    }
+    std.debug.print("Insertion Sort:\n Requires {d} swaps.\n", .{app_state.animations.items.len});
 }
