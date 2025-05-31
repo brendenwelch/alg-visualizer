@@ -14,7 +14,7 @@ pub fn build(b: *std.Build) void {
     const sdl3 = b.dependency("sdl3", .{
         .target = target,
         .optimize = optimize,
-        .callbacks = true,
+        .callbacks = false,
         .ext_image = true,
     });
     exe.root_module.addImport("sdl3", sdl3.module("sdl3"));
