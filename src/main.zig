@@ -3,6 +3,7 @@ const std = @import("std");
 
 const WINDOW_WIDTH = 1200;
 const WINDOW_HEIGHT = 675;
+const PADDING = 50;
 
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 const allocator = gpa.allocator();
@@ -11,6 +12,17 @@ const AppState = struct {
     window: sdl.video.Window,
     renderer: sdl.render.Renderer,
     data: []sdl.rect.FRect,
+    animations: std.ArrayList(Animation),
+    last_tick: u64,
+};
+
+const AnimationKind = enum {
+    compare,
+    swap,
+};
+const Animation = struct {
+    kind: AnimationKind,
+    indexes: [2]usize,
 };
 
 /// Do our initialization logic here.
@@ -43,6 +55,8 @@ pub fn init(app_state: *?*AppState, args: [][*:0]u8) !sdl.AppResult {
         .window = window_renderer.window,
         .renderer = window_renderer.renderer,
         .data = undefined,
+        .animations = undefined,
+        .last_tick = undefined,
     };
     app_state.* = state;
 
@@ -52,12 +66,16 @@ pub fn init(app_state: *?*AppState, args: [][*:0]u8) !sdl.AppResult {
         data[i] = .{
             .h = @floatFromInt(10 * (i + 1)),
             .w = 10,
-            .x = @floatFromInt(20 + (i * 12)),
-            .y = 20,
+            .x = @floatFromInt(PADDING + (i * 12)),
+            .y = PADDING,
         };
     }
     app_state.*.?.data = data;
 
+    // Sort data, returning queue of animations.
+    app_state.*.?.animations = std.ArrayList(Animation).init(allocator);
+
+    app_state.*.?.last_tick = sdl.timer.getMillisecondsSinceInit();
     return .run;
 }
 
@@ -69,13 +87,38 @@ pub fn init(app_state: *?*AppState, args: [][*:0]u8) !sdl.AppResult {
 /// ## Return Value
 /// Returns if the app should continue running, or result in success or failure.
 pub fn iterate(app_state: *AppState) !sdl.AppResult {
+    const this_tick = sdl.timer.getMillisecondsSinceInit();
+    // Don't start until some reasonable delay.
+    if (this_tick > 5000) {
+        // Pop first animation from queue.
+        var next: Animation = undefined;
+        if (app_state.animations.items.len > 0) {
+            next = app_state.animations.orderedRemove(0);
+        }
+        // Apply animation to data.
+        switch (next.kind) {
+            .swap => {
+                const tmp = app_state.data[next.indexes[0]];
+                app_state.data[next.indexes[0]] = app_state.data[next.indexes[1]];
+                app_state.data[next.indexes[1]] = tmp;
+            },
+            else => {},
+        }
+    }
+    // Render data.
     try app_state.renderer.setDrawColor(.{ .r = 200, .g = 200, .b = 200 });
     try app_state.renderer.clear();
-
     try app_state.renderer.setDrawColor(.{ .r = 50, .g = 50, .b = 50 });
     try app_state.renderer.renderFillRects(app_state.data);
-
     try app_state.renderer.present();
+
+    // Wait until a minimum tick delay has passed
+    const tick_delta = this_tick - app_state.last_tick;
+    if (tick_delta < 1000) {
+        sdl.timer.delayMilliseconds(@intCast(1000 - tick_delta));
+    }
+    app_state.last_tick = sdl.timer.getMillisecondsSinceInit();
+
     return .run;
 }
 
@@ -113,16 +156,22 @@ pub fn quit(app_state: ?*AppState, result: sdl.AppResult) void {
     if (app_state) |state| {
         state.renderer.deinit();
         state.window.deinit();
+        state.animations.deinit();
         allocator.free(state.data);
         allocator.destroy(state);
     }
 }
 
-// Alright, I have some things I need to get out of the way.
-// Initial target is to play out array sorts using a classic bar graph.
-// First, we need to figure out how to handle rendering.
-// Not necessary to render on an interval, but we'll want to limit it/batch.
-// renderNow() if (delta > min_frame_time) else renderQueue();
-// This may be an overcomplication. Just use renderNow() for now.
-// Let's draw a rectangle.
 //=---Helpers---==
+fn generateData(len: usize) []u8 {
+    // Generate list of random numbers, with length of `len`.
+    return .{ 5, len };
+}
+
+fn bubbleSort(arr: []u8) []Animation {
+    _ = arr;
+    return [_]Animation{
+        .{ .kind = .swap, .indexes = .{ 5, 2 } },
+        .{ .kind = .swap, .indexes = .{ 1, 5 } },
+    };
+}
