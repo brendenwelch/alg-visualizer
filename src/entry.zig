@@ -18,11 +18,7 @@ pub const WinMainCRTStartup = void;
 ///
 /// ## Version
 /// This function is available since SDL 3.2.0.
-pub export fn SDL_AppInit(
-    app_state: *?*anyopaque,
-    arg_count: c_int,
-    arg_values: [*][*:0]u8,
-) callconv(.c) sdl3.AppResult {
+pub export fn SDL_AppInit(app_state: *?*anyopaque, arg_count: c_int, arg_values: [*][*:0]u8) callconv(.c) sdl3.AppResult {
     return m.init(@ptrCast(app_state), arg_values[0..@intCast(arg_count)]) catch return .failure;
 }
 
@@ -40,9 +36,7 @@ pub export fn SDL_AppInit(
 ///
 /// ## Version
 /// This function is available since SDL 3.2.0.
-pub export fn SDL_AppIterate(
-    app_state: ?*anyopaque,
-) callconv(.c) sdl3.AppResult {
+pub export fn SDL_AppIterate(app_state: ?*anyopaque) callconv(.c) sdl3.AppResult {
     return m.iterate(@alignCast(@ptrCast(app_state))) catch return .failure;
 }
 
@@ -61,10 +55,7 @@ pub export fn SDL_AppIterate(
 ///
 /// ## Version
 /// This function is available since SDL 3.2.0.
-pub export fn SDL_AppEvent(
-    app_state: ?*anyopaque,
-    event: *sdl3.c.SDL_Event,
-) callconv(.c) sdl3.AppResult {
+pub export fn SDL_AppEvent(app_state: ?*anyopaque, event: *sdl3.c.SDL_Event) callconv(.c) sdl3.AppResult {
     return m.eventHandler(@alignCast(@ptrCast(app_state)), sdl3.events.Event.fromSdl(event.*)) catch return .failure;
 }
 
@@ -80,9 +71,6 @@ pub export fn SDL_AppEvent(
 ///
 /// ## Version
 /// This function is available since SDL 3.2.0.
-pub export fn SDL_AppQuit(
-    app_state: ?*anyopaque,
-    result: sdl3.AppResult,
-) callconv(.c) void {
+pub export fn SDL_AppQuit(app_state: ?*anyopaque, result: sdl3.AppResult) callconv(.c) void {
     m.quit(@alignCast(@ptrCast(app_state)), result);
 }
