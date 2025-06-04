@@ -8,13 +8,21 @@ const PADDING = 50;
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 const allocator = gpa.allocator();
 
-var sort_start: u64 = 0;
-var sort_end: u64 = 0;
+const Time = struct {
+    last_tick: u64 = 0,
+    this_tick: u64 = 0,
+};
+
+const PossibleStates = enum {
+    waiting,
+    sorting,
+};
 
 const AppState = struct {
+    state: PossibleStates,
     window: sdl.video.Window,
     renderer: sdl.render.Renderer,
-    last_tick: u64,
+    time: Time,
     data: std.ArrayList(u32),
     animations: std.ArrayList(Animation),
 };
@@ -41,8 +49,8 @@ pub fn init(app_state: *?*AppState, args: [][*:0]u8) !sdl.AppResult {
     _ = args;
 
     // Prepare app state.
-    const state = try allocator.create(AppState);
-    errdefer allocator.destroy(state);
+    app_state.* = try allocator.create(AppState);
+    errdefer allocator.destroy(app_state.*.?);
 
     // Setup initial data.
     const window_renderer = try sdl.render.Renderer.initWithWindow(
@@ -54,28 +62,17 @@ pub fn init(app_state: *?*AppState, args: [][*:0]u8) !sdl.AppResult {
     errdefer window_renderer.renderer.deinit();
     errdefer window_renderer.window.deinit();
 
-    // Create and generate data.
-    var data = try generateData(200);
-    errdefer data.deinit();
-
-    // Create animations queue.
-    var animations = std.ArrayList(Animation).init(allocator);
-    errdefer animations.deinit();
-
     // Set app state.
-    state.* = .{
+    app_state.*.?.* = .{
+        .state = .waiting,
         .window = window_renderer.window,
         .renderer = window_renderer.renderer,
-        .data = data,
-        .animations = animations,
-        .last_tick = sdl.timer.getMillisecondsSinceInit(),
+        .time = Time{},
+        .data = std.ArrayList(u32).init(allocator),
+        .animations = std.ArrayList(Animation).init(allocator),
     };
-    errdefer state.animations.deinit();
-    app_state.* = state;
-
-    // Fill animation queue.
-    try bubbleSort(app_state.*.?);
-    //try insertionSort(app_state.*.?);
+    errdefer app_state.*.?.data.deinit();
+    errdefer app_state.*.?.animations.deinit();
 
     return .run;
 }
@@ -88,34 +85,30 @@ pub fn init(app_state: *?*AppState, args: [][*:0]u8) !sdl.AppResult {
 /// ## Return Value
 /// Returns if the app should continue running, or result in success or failure.
 pub fn iterate(app_state: *AppState) !sdl.AppResult {
-    const this_tick = sdl.timer.getMillisecondsSinceInit();
-    if (this_tick > 5000) {
-        if (sort_start == 0) {
-            sort_start = this_tick;
-        }
-        // Pop first animation from queue.
-        const next: Animation = app_state.animations.pop() orelse Animation{
-            .indexes = .{ 0, 1 },
-            .kind = .compare,
-        };
-        // Apply animation to data.
-        switch (next.kind) {
-            .swap => {
-                const tmp = app_state.data.items[next.indexes[0]];
-                app_state.data.items[next.indexes[0]] = app_state.data.items[next.indexes[1]];
-                app_state.data.items[next.indexes[1]] = tmp;
-            },
-            else => {
-                if (sort_end == 0) {
-                    sort_end = this_tick;
-                    std.debug.print(" Took {d} seconds.\n", .{(sort_end - sort_start) / 1000});
-                }
-            },
-        }
+    app_state.time.this_tick = sdl.timer.getMillisecondsSinceInit();
+
+    switch (app_state.state) {
+        .sorting => {
+            // Pop first animation from queue.
+            const next: Animation = app_state.animations.pop().?;
+
+            // Apply animation to data.
+            switch (next.kind) {
+                .swap => {
+                    const tmp = app_state.data.items[next.indexes[0]];
+                    app_state.data.items[next.indexes[0]] = app_state.data.items[next.indexes[1]];
+                    app_state.data.items[next.indexes[1]] = tmp;
+                },
+                else => app_state.state = .waiting,
+            }
+        },
+        else => {},
     }
+
     // Render data.
     try app_state.renderer.setDrawColor(.{ .r = 200, .g = 200, .b = 200 });
     try app_state.renderer.clear();
+
     try app_state.renderer.setDrawColor(.{ .r = 50, .g = 50, .b = 50 });
     const len: f32 = @as(f32, @floatFromInt(app_state.data.items.len));
     for (app_state.data.items, 0..) |val, i| {
@@ -132,14 +125,7 @@ pub fn iterate(app_state: *AppState) !sdl.AppResult {
         });
     }
     try app_state.renderer.present();
-
-    // Wait until a minimum tick delay has passed
-    const tick_min = 1;
-    const tick_delta = this_tick - app_state.last_tick;
-    if (tick_delta < tick_min) {
-        sdl.timer.delayMilliseconds(@intCast(tick_min - tick_delta));
-    }
-    app_state.last_tick = sdl.timer.getMillisecondsSinceInit();
+    app_state.time.last_tick = sdl.timer.getMillisecondsSinceInit();
 
     return .run;
 }
@@ -153,14 +139,13 @@ pub fn iterate(app_state: *AppState) !sdl.AppResult {
 /// ## Return Value
 /// Returns if the app should continue running, or result in success or failure.
 pub fn eventHandler(app_state: *AppState, event: sdl.events.Event) !sdl.AppResult {
-    _ = app_state;
     switch (event) {
         .key_down => {
             switch (event.key_down.key.?) {
                 .escape => return .success,
-                //.r => {
-                // Remove all animations and generate new data.
-                //}
+                .space => if (app_state.state == .waiting) try generateData(app_state, 200),
+                .one => if (app_state.state == .waiting and app_state.data.items.len > 0) try bubbleSort(app_state),
+                .two => if (app_state.state == .waiting and app_state.data.items.len > 0) try insertionSort(app_state),
                 else => {},
             }
         },
@@ -188,15 +173,15 @@ pub fn quit(app_state: ?*AppState, result: sdl.AppResult) void {
 }
 
 //=---Helpers---==
-fn generateData(len: u32) !std.ArrayList(u32) {
-    var data = std.ArrayList(u32).init(allocator);
+fn generateData(app_state: *AppState, len: u32) !void {
+    app_state.data.clearAndFree();
     for (0..len) |_| {
-        try data.append(std.crypto.random.intRangeAtMost(u32, 1, len));
+        try app_state.data.append(std.crypto.random.intRangeAtMost(u32, 1, len));
     }
-    return data;
 }
 
 fn bubbleSort(app_state: *AppState) !void {
+    const sort_start = sdl.timer.getMillisecondsSinceInit();
     const copy: std.ArrayList(u32) = try app_state.data.clone();
     const len: usize = copy.items.len;
     var ordered: bool = false;
@@ -217,10 +202,17 @@ fn bubbleSort(app_state: *AppState) !void {
             }
         }
     }
+    try app_state.animations.insert(0, Animation{
+        .kind = .compare,
+        .indexes = .{ 0, 0 },
+    });
     std.debug.print("Bubble Sort:\n Requires {d} swaps.\n", .{app_state.animations.items.len});
+    std.debug.print(" Took {d} seconds.\n", .{@as(f32, @floatFromInt(sdl.timer.getMillisecondsSinceInit() - sort_start)) / 1000});
+    app_state.state = .sorting;
 }
 
 fn insertionSort(app_state: *AppState) !void {
+    const sort_start = sdl.timer.getMillisecondsSinceInit();
     const copy: std.ArrayList(u32) = try app_state.data.clone();
     const len: usize = copy.items.len;
     for (0..len) |i| {
@@ -241,5 +233,11 @@ fn insertionSort(app_state: *AppState) !void {
             }
         }
     }
+    try app_state.animations.insert(0, Animation{
+        .kind = .compare,
+        .indexes = .{ 0, 0 },
+    });
     std.debug.print("Insertion Sort:\n Requires {d} swaps.\n", .{app_state.animations.items.len});
+    std.debug.print(" Took {d} seconds.\n", .{@as(f32, @floatFromInt(sdl.timer.getMillisecondsSinceInit() - sort_start)) / 1000});
+    app_state.state = .sorting;
 }
