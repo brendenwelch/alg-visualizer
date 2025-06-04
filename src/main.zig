@@ -25,8 +25,8 @@ pub fn main() !void {
             if (e == .key_down) {
                 switch (e.key_down.key.?) {
                     .escape => quitting = true,
+                    .space => try generateData(app, 300),
                     .one => try bubbleSort(app),
-                    .two => try insertionSort(app),
                     else => {},
                 }
             }
@@ -57,7 +57,6 @@ fn init() !*AppState {
         .data = std.ArrayList(u32).init(allocator),
     };
 
-    try generateData(app, 200);
     try updateRender(app);
     return app;
 }
@@ -99,14 +98,29 @@ fn generateData(app: *AppState, len: u32) !void {
     for (0..len) |_| {
         try app.data.append(std.crypto.random.intRangeAtMost(u32, 1, len));
     }
+    try updateRender(app);
 }
 
 fn bubbleSort(app: *AppState) !void {
-    // Called every update.
-    try updateRender(app);
-}
+    const len = app.data.items.len;
+    if (len == 0) return;
 
-fn insertionSort(app: *AppState) !void {
-    // Called every update.
-    try updateRender(app);
+    const start = sdl.timer.getMillisecondsSinceInit();
+    var sorted = false;
+    while (!sorted) {
+        sorted = true;
+        for (0..(len - 1)) |i| {
+            if (app.data.items[i] > app.data.items[i + 1]) {
+                const tmp = app.data.items[i];
+                app.data.items[i] = app.data.items[i + 1];
+                app.data.items[i + 1] = tmp;
+                sorted = false;
+                try updateRender(app);
+            }
+        }
+    }
+
+    std.debug.print("Bubble Sort took {d} milliseconds.\n", .{sdl.timer.getMillisecondsSinceInit() - start});
+    sdl.events.pump();
+    sdl.events.flush(.key_down);
 }
