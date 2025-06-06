@@ -1,27 +1,17 @@
-const sdl = @import("sdl3");
-const std = @import("std");
-
-const WINDOW_WIDTH = 1200;
-const WINDOW_HEIGHT = 675;
-const PADDING = 50;
-const BACKGROUND_COLOR: sdl.pixels.Color = .{ .r = 180, .g = 180, .b = 180 };
-const BAR_COLOR: sdl.pixels.Color = .{ .r = 50, .g = 50, .b = 50 };
-
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-const allocator = gpa.allocator();
-
-const AppState = struct {
-    window: sdl.video.Window,
-    renderer: sdl.render.Renderer,
-    data: std.ArrayList(u32),
-};
-
+/// Entrypoint and core of the program.
 pub fn main() !void {
+    // Setup everything needed before entering the loop.
     const app = try init();
-    var data_size: u32 = 500;
+    errdefer quit(app);
 
+    var data_size: u32 = 500;
+    try generateData(app, data_size);
+
+    // This loop only exits when quitting.
+    // All user-controlled behavior happens here.
     var quitting = false;
     while (!quitting) {
+        // Wait for and handle input from the user.
         if (try sdl.events.wait(true)) |e| {
             if (e == .key_down) {
                 switch (e.key_down.key.?) {
@@ -48,7 +38,8 @@ pub fn main() !void {
         }
     }
 
-    try quit(app);
+    // Clean up after ourselves before quitting.
+    quit(app);
 }
 
 /// Do our initialization logic here.
@@ -77,19 +68,18 @@ fn init() !*AppState {
 }
 
 /// Quit the application, cleaning up after ourselves.
-fn quit(app: *AppState) !void {
+fn quit(app: *AppState) void {
     app.data.deinit();
     app.renderer.deinit();
     app.window.deinit();
     allocator.destroy(app);
 }
 
-//=---Helpers---==
+/// Redraw all contents of the window, according to global state.
 fn updateRender(app: *AppState) !void {
-    try app.renderer.setDrawColor(BACKGROUND_COLOR);
+    try app.renderer.setDrawColor(.{ .r = 180, .g = 180, .b = 180 });
     try app.renderer.clear();
-
-    try app.renderer.setDrawColor(BAR_COLOR);
+    try app.renderer.setDrawColor(.{ .r = 50, .g = 50, .b = 50 });
     const len: f32 = @as(f32, @floatFromInt(app.data.items.len));
     for (app.data.items, 0..) |val, i| {
         const height_ratio = @as(f32, @floatFromInt(val)) / len;
@@ -101,30 +91,20 @@ fn updateRender(app: *AppState) !void {
             .y = (WINDOW_HEIGHT * (1 - height_ratio)),
         });
     }
-
-    // For whatever reason, this is not working. Will likely need to
-    // import it myself, which is beyond the scope of this project.
-    // We'll have to be okay with printing to the console instead.
-    //try app.renderer.setDrawColor(.{ .r = 200, .g = 0, .b = 0 });
-    //_ = sdl.c.SDL_RenderDebugText(app.renderer.value, 50, 50, @as([:0]const u8, "help"));
-
     try app.renderer.present();
 }
 
-fn swap(app: *AppState, i: usize, j: usize) !void {
-    const tmp = app.data.items[i];
-    app.data.items[i] = app.data.items[j];
-    app.data.items[j] = tmp;
-}
-
+/// Generate data
 fn generateData(app: *AppState, len: u32) !void {
     app.data.clearAndFree();
     for (0..len) |_| {
         try app.data.append(std.crypto.random.intRangeAtMost(u32, 1, len));
     }
     try updateRender(app);
+    std.debug.print("Generated dataset of size: {d}\n", .{len});
 }
 
+/// Bubble sort implementation. Uses and mutates global data.
 fn bubbleSort(app: *AppState) !void {
     const start = sdl.timer.getMillisecondsSinceInit();
     const len = app.data.items.len;
@@ -147,13 +127,14 @@ fn bubbleSort(app: *AppState) !void {
     sdl.events.flush(.key_down);
 }
 
+/// Comb sort implementation. Uses and mutates global data.
 fn combSort(app: *AppState) !void {
     const start = sdl.timer.getMillisecondsSinceInit();
     const len = app.data.items.len;
     if (len < 2) return;
 
     var comb = len - 1;
-    while (comb > 0) {
+    while (comb > 0) : (comb -= 1) {
         var i: usize = 0;
         for (comb..len) |j| {
             if (app.data.items[i] > app.data.items[j]) {
@@ -162,7 +143,6 @@ fn combSort(app: *AppState) !void {
             }
             i += 1;
         }
-        comb -= 1;
     }
 
     std.debug.print("Comb Sort took {d} milliseconds.\n", .{sdl.timer.getMillisecondsSinceInit() - start});
@@ -170,6 +150,7 @@ fn combSort(app: *AppState) !void {
     sdl.events.flush(.key_down);
 }
 
+/// Insertion sort implementation. Uses and mutates global data.
 fn insertionSort(app: *AppState) !void {
     const start = sdl.timer.getMillisecondsSinceInit();
     const len = app.data.items.len;
@@ -189,57 +170,7 @@ fn insertionSort(app: *AppState) !void {
     sdl.events.flush(.key_down);
 }
 
-fn mergeSortRecursive(app: *AppState) !void {
-    const start = sdl.timer.getMillisecondsSinceInit();
-    if (app.data.items.len < 2) return;
-
-    const fns = struct {
-        fn divide(list: std.ArrayList(u32)) !std.ArrayList(u32) {
-            const len = list.items.len;
-            if (len >= 2) {
-                const mid = len / 2;
-                var a = std.ArrayList(u32).init(allocator);
-                errdefer a.deinit();
-                try a.appendSlice(list.items[0..mid]);
-                var b = std.ArrayList(u32).init(allocator);
-                errdefer b.deinit();
-                try b.appendSlice(list.items[mid..len]);
-                return try merge(try divide(a), try divide(b));
-            }
-            return list;
-        }
-
-        fn merge(a: std.ArrayList(u32), b: std.ArrayList(u32)) !std.ArrayList(u32) {
-            var list = std.ArrayList(u32).init(allocator);
-            var i: usize = 0;
-            var j: usize = 0;
-            while (i < a.items.len and j < b.items.len) {
-                if (a.items[i] <= b.items[j]) {
-                    try list.append(a.items[i]);
-                    i += 1;
-                } else {
-                    try list.append(b.items[j]);
-                    j += 1;
-                }
-            }
-            if (i == a.items.len) {
-                try list.appendSlice(b.items[j..]);
-            } else {
-                try list.appendSlice(a.items[i..]);
-            }
-            a.deinit();
-            b.deinit();
-            return list;
-        }
-    };
-
-    app.data = try fns.divide(app.data);
-    try updateRender(app);
-    std.debug.print("Merge Sort (recursive) took {d} milliseconds.\n", .{sdl.timer.getMillisecondsSinceInit() - start});
-    sdl.events.pump();
-    sdl.events.flush(.key_down);
-}
-
+/// Merge sort iterative implementation. Uses and mutates global data.
 fn mergeSort(app: *AppState) !void {
     const start = sdl.timer.getMillisecondsSinceInit();
     const len: usize = app.data.items.len;
@@ -304,6 +235,7 @@ fn mergeSort(app: *AppState) !void {
     sdl.events.flush(.key_down);
 }
 
+/// Quick sort recursive implementation. Uses and mutates global data.
 fn quickSort(app: *AppState) !void {
     const start = sdl.timer.getMillisecondsSinceInit();
     const len: usize = app.data.items.len;
@@ -331,3 +263,27 @@ fn quickSort(app: *AppState) !void {
     sdl.events.pump();
     sdl.events.flush(.key_down);
 }
+
+/// Swap the values at two indexes. Uses and mutates global data.
+fn swap(app: *AppState, i: usize, j: usize) !void {
+    const tmp = app.data.items[i];
+    app.data.items[i] = app.data.items[j];
+    app.data.items[j] = tmp;
+}
+
+/// Basically just a container of globals, since everything uses this. I probably should've just used globals.
+// TODO:Use globals.
+const AppState = struct {
+    window: sdl.video.Window,
+    renderer: sdl.render.Renderer,
+    data: std.ArrayList(u32),
+};
+
+var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+const allocator = gpa.allocator();
+
+const WINDOW_WIDTH = 1200;
+const WINDOW_HEIGHT = 675;
+
+const sdl = @import("sdl3");
+const std = @import("std");
