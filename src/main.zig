@@ -27,6 +27,10 @@ pub fn main() !void {
                     .escape => quitting = true,
                     .space => try generateData(app, 300),
                     .one => try bubbleSort(app),
+                    .two => try insertionSort(app),
+                    .three => try combSort(app),
+                    .four => try mergeSort(app),
+                    .five => try mergeSortRecursive(app),
                     else => {},
                 }
             }
@@ -93,6 +97,12 @@ fn updateRender(app: *AppState) !void {
     try app.renderer.present();
 }
 
+fn swap(app: *AppState, i: usize, j: usize) !void {
+    const tmp = app.data.items[i];
+    app.data.items[i] = app.data.items[j];
+    app.data.items[j] = tmp;
+}
+
 fn generateData(app: *AppState, len: u32) !void {
     app.data.clearAndFree();
     for (0..len) |_| {
@@ -102,25 +112,128 @@ fn generateData(app: *AppState, len: u32) !void {
 }
 
 fn bubbleSort(app: *AppState) !void {
-    const len = app.data.items.len;
-    if (len == 0) return;
-
     const start = sdl.timer.getMillisecondsSinceInit();
+    const len = app.data.items.len;
+    if (len < 2) return;
+
     var sorted = false;
     while (!sorted) {
         sorted = true;
         for (0..(len - 1)) |i| {
             if (app.data.items[i] > app.data.items[i + 1]) {
-                const tmp = app.data.items[i];
-                app.data.items[i] = app.data.items[i + 1];
-                app.data.items[i + 1] = tmp;
-                sorted = false;
+                try swap(app, i, i + 1);
                 try updateRender(app);
+                sorted = false;
             }
         }
     }
 
     std.debug.print("Bubble Sort took {d} milliseconds.\n", .{sdl.timer.getMillisecondsSinceInit() - start});
+    sdl.events.pump();
+    sdl.events.flush(.key_down);
+}
+
+fn combSort(app: *AppState) !void {
+    const start = sdl.timer.getMillisecondsSinceInit();
+    const len = app.data.items.len;
+    if (len < 2) return;
+
+    var comb = len - 1;
+    while (comb > 0) {
+        var i: usize = 0;
+        for (comb..len) |j| {
+            if (app.data.items[i] > app.data.items[j]) {
+                try swap(app, i, j);
+                try updateRender(app);
+            }
+            i += 1;
+        }
+        comb -= 1;
+    }
+
+    std.debug.print("Comb Sort took {d} milliseconds.\n", .{sdl.timer.getMillisecondsSinceInit() - start});
+    sdl.events.pump();
+    sdl.events.flush(.key_down);
+}
+
+fn insertionSort(app: *AppState) !void {
+    const start = sdl.timer.getMillisecondsSinceInit();
+    const len = app.data.items.len;
+    if (len < 2) return;
+
+    for (1..len) |j| {
+        for (0..j) |i| {
+            if (app.data.items[i] > app.data.items[j]) {
+                try swap(app, i, j);
+                try updateRender(app);
+            }
+        }
+    }
+
+    std.debug.print("Insertion Sort took {d} milliseconds.\n", .{sdl.timer.getMillisecondsSinceInit() - start});
+    sdl.events.pump();
+    sdl.events.flush(.key_down);
+}
+
+fn mergeSortRecursive(app: *AppState) !void {
+    const start = sdl.timer.getMillisecondsSinceInit();
+    if (app.data.items.len < 2) return;
+
+    const fns = struct {
+        fn divide(list: std.ArrayList(u32)) !std.ArrayList(u32) {
+            const len = list.items.len;
+            if (len >= 2) {
+                const mid = len / 2;
+                var a = std.ArrayList(u32).init(allocator);
+                errdefer a.deinit();
+                try a.appendSlice(list.items[0..mid]);
+                var b = std.ArrayList(u32).init(allocator);
+                errdefer b.deinit();
+                try b.appendSlice(list.items[mid..len]);
+                return try merge(try divide(a), try divide(b));
+            }
+            return list;
+        }
+
+        fn merge(a: std.ArrayList(u32), b: std.ArrayList(u32)) !std.ArrayList(u32) {
+            var list = std.ArrayList(u32).init(allocator);
+            var i: usize = 0;
+            var j: usize = 0;
+            while (i < a.items.len and j < b.items.len) {
+                if (a.items[i] <= b.items[j]) {
+                    try list.append(a.items[i]);
+                    i += 1;
+                } else {
+                    try list.append(b.items[j]);
+                    j += 1;
+                }
+            }
+            if (i == a.items.len) {
+                try list.appendSlice(b.items[j..]);
+            } else {
+                try list.appendSlice(a.items[i..]);
+            }
+            a.deinit();
+            b.deinit();
+            return list;
+        }
+    };
+
+    app.data = try fns.divide(app.data);
+    try updateRender(app);
+    std.debug.print("Merge Sort (recursive) took {d} milliseconds.\n", .{sdl.timer.getMillisecondsSinceInit() - start});
+    sdl.events.pump();
+    sdl.events.flush(.key_down);
+}
+
+fn mergeSort(app: *AppState) !void {
+    const start = sdl.timer.getMillisecondsSinceInit();
+    const len: usize = app.data.items.len;
+    if (app.data.items.len < 2) return;
+
+    // Use slices.
+
+    std.debug.print("Merge Sort took {d} milliseconds.\n", .{sdl.timer.getMillisecondsSinceInit() - start});
     sdl.events.pump();
     sdl.events.flush(.key_down);
 }
