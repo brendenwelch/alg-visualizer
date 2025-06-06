@@ -4,7 +4,7 @@ const std = @import("std");
 const WINDOW_WIDTH = 1200;
 const WINDOW_HEIGHT = 675;
 const PADDING = 50;
-const BACKGROUND_COLOR: sdl.pixels.Color = .{ .r = 200, .g = 200, .b = 200 };
+const BACKGROUND_COLOR: sdl.pixels.Color = .{ .r = 180, .g = 180, .b = 180 };
 const BAR_COLOR: sdl.pixels.Color = .{ .r = 50, .g = 50, .b = 50 };
 
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -18,7 +18,7 @@ const AppState = struct {
 
 pub fn main() !void {
     const app = try init();
-    std.debug.print("Data size: 1000\n", .{});
+    var data_size: u32 = 500;
 
     var quitting = false;
     while (!quitting) {
@@ -26,14 +26,24 @@ pub fn main() !void {
             if (e == .key_down) {
                 switch (e.key_down.key.?) {
                     .escape => quitting = true,
-                    .space => try generateData(app, 1000),
+                    .space => try generateData(app, data_size),
                     .one => try bubbleSort(app),
                     .two => try insertionSort(app),
                     .three => try combSort(app),
                     .four => try mergeSort(app),
                     .five => try quickSort(app),
+                    .up => {
+                        data_size += if (data_size + 100 < WINDOW_WIDTH) 100 else 0;
+                        try generateData(app, data_size);
+                    },
+                    .down => {
+                        data_size -= if (data_size - 100 > 0) 100 else 0;
+                        try generateData(app, data_size);
+                    },
                     else => {},
                 }
+            } else if (e == .quit or e == .terminating) {
+                quitting = true;
             }
         }
     }
@@ -83,17 +93,20 @@ fn updateRender(app: *AppState) !void {
     const len: f32 = @as(f32, @floatFromInt(app.data.items.len));
     for (app.data.items, 0..) |val, i| {
         const height_ratio = @as(f32, @floatFromInt(val)) / len;
-        const max_height: f32 = WINDOW_HEIGHT - (2 * PADDING);
-        const max_width: f32 = WINDOW_WIDTH - (2 * PADDING);
-        const bar_width: f32 = @divFloor(max_width, len);
-        const padding = PADDING + (max_width - (bar_width * len)) / 2;
+        const bar_width: f32 = WINDOW_WIDTH / len;
         try app.renderer.renderFillRect(sdl.rect.FRect{
-            .h = max_height * height_ratio,
+            .h = WINDOW_HEIGHT * height_ratio,
             .w = bar_width,
-            .x = padding + @as(f32, @floatFromInt(i)) * bar_width,
-            .y = PADDING + (max_height * (1 - height_ratio)),
+            .x = @as(f32, @floatFromInt(i)) * bar_width,
+            .y = (WINDOW_HEIGHT * (1 - height_ratio)),
         });
     }
+
+    // For whatever reason, this is not working. Will likely need to
+    // import it myself, which is beyond the scope of this project.
+    // We'll have to be okay with printing to the console instead.
+    //try app.renderer.setDrawColor(.{ .r = 200, .g = 0, .b = 0 });
+    //_ = sdl.c.SDL_RenderDebugText(app.renderer.value, 50, 50, @as([:0]const u8, "help"));
 
     try app.renderer.present();
 }
