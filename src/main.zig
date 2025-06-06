@@ -29,8 +29,8 @@ pub fn main() !void {
                     .one => try bubbleSort(app),
                     .two => try insertionSort(app),
                     .three => try combSort(app),
-                    .four => try mergeSort(app),
                     .five => try mergeSortRecursive(app),
+                    .four => try mergeSort(app),
                     else => {},
                 }
             }
@@ -231,32 +231,58 @@ fn mergeSort(app: *AppState) !void {
     const len: usize = app.data.items.len;
     if (app.data.items.len < 2) return;
 
+    var out = std.ArrayList(u32).init(allocator);
+
     var slice_size: usize = 1;
     while (slice_size < len) : (slice_size *= 2) {
+
+        // Create sets of adjacent slices for comparison.
         const partial_comparison: usize = if (len % (slice_size * 2) > 0) 1 else 0;
         const comparisons: usize = @divFloor(len, (slice_size * 2)) + partial_comparison;
-        std.debug.print("Slice size: {d}, Comparisons: {d}\n", .{ slice_size, comparisons });
+        //std.debug.print("Slice size: {d}, Comparisons: {d}\n", .{ slice_size, comparisons });
         for (0..comparisons) |comparison| {
             var a: []const u32 = undefined;
             var b: []const u32 = undefined;
             const a_start: usize = comparison * slice_size * 2;
             const remaining: usize = len - a_start;
-            // This works, however uneven slices will cause the sort to take longer.
-            // Attempt to refactor for near-even slice lengths.
-            if (remaining >= slice_size * 2) {
+            if (remaining >= slice_size * 2) { // Enough for 2 full slices.
                 const b_start: usize = a_start + slice_size;
                 const b_end: usize = b_start + slice_size;
                 a = app.data.items[a_start..b_start];
                 b = app.data.items[b_start..b_end];
-            } else if (remaining > slice_size and remaining < slice_size * 2) {
+            } else if (remaining > slice_size) { // Enough for 2 partial slices.
                 const b_start: usize = a_start + slice_size;
                 a = app.data.items[a_start..b_start];
                 b = app.data.items[b_start..len];
-            } else {
+            } else { // Enough for one slice.
                 a = app.data.items[a_start..len];
-                b = app.data.items[len..len];
+                b = &.{};
             }
-            std.debug.print("Length of a: {d}, Length of b: {d}\n", .{ a.len, b.len });
+            //std.debug.print("a({d}):{any}\nb({d}):{any}\n", .{ a.len, a, b.len, b });
+
+            // Sort the slices into some temporary array.
+            var a_current: usize = 0;
+            var b_current: usize = 0;
+            while (a_current < a.len and b_current < b.len) {
+                if (a[a_current] <= b[b_current]) {
+                    try out.append(a[a_current]);
+                    a_current += 1;
+                } else {
+                    try out.append(b[b_current]);
+                    b_current += 1;
+                }
+            }
+            if (a_current < a.len) {
+                try out.appendSlice(a[a_current..]);
+            } else if (b_current < a.len) {
+                try out.appendSlice(b[b_current..]);
+            }
+            //std.debug.print("out({d}):{any}\n", .{ out.items.len, out.items });
+
+            // Update values on displayed array.
+            try app.data.replaceRange(a_start, out.items.len, out.items[0..]);
+            out.clearAndFree();
+            try updateRender(app);
         }
     }
 
