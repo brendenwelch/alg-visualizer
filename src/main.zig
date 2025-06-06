@@ -231,7 +231,34 @@ fn mergeSort(app: *AppState) !void {
     const len: usize = app.data.items.len;
     if (app.data.items.len < 2) return;
 
-    // Use slices.
+    var slice_size: usize = 1;
+    while (slice_size < len) : (slice_size *= 2) {
+        const partial_comparison: usize = if (len % (slice_size * 2) > 0) 1 else 0;
+        const comparisons: usize = @divFloor(len, (slice_size * 2)) + partial_comparison;
+        std.debug.print("Slice size: {d}, Comparisons: {d}\n", .{ slice_size, comparisons });
+        for (0..comparisons) |comparison| {
+            var a: []const u32 = undefined;
+            var b: []const u32 = undefined;
+            const a_start: usize = comparison * slice_size * 2;
+            const remaining: usize = len - a_start;
+            // This works, however uneven slices will cause the sort to take longer.
+            // Attempt to refactor for near-even slice lengths.
+            if (remaining >= slice_size * 2) {
+                const b_start: usize = a_start + slice_size;
+                const b_end: usize = b_start + slice_size;
+                a = app.data.items[a_start..b_start];
+                b = app.data.items[b_start..b_end];
+            } else if (remaining > slice_size and remaining < slice_size * 2) {
+                const b_start: usize = a_start + slice_size;
+                a = app.data.items[a_start..b_start];
+                b = app.data.items[b_start..len];
+            } else {
+                a = app.data.items[a_start..len];
+                b = app.data.items[len..len];
+            }
+            std.debug.print("Length of a: {d}, Length of b: {d}\n", .{ a.len, b.len });
+        }
+    }
 
     std.debug.print("Merge Sort took {d} milliseconds.\n", .{sdl.timer.getMillisecondsSinceInit() - start});
     sdl.events.pump();
