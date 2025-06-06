@@ -18,6 +18,7 @@ const AppState = struct {
 
 pub fn main() !void {
     const app = try init();
+    std.debug.print("Data size: 1000\n", .{});
 
     var quitting = false;
     while (!quitting) {
@@ -25,11 +26,12 @@ pub fn main() !void {
             if (e == .key_down) {
                 switch (e.key_down.key.?) {
                     .escape => quitting = true,
-                    .space => try generateData(app, 300),
+                    .space => try generateData(app, 1000),
                     .one => try bubbleSort(app),
                     .two => try insertionSort(app),
                     .three => try combSort(app),
                     .four => try mergeSort(app),
+                    .five => try quickSort(app),
                     else => {},
                 }
             }
@@ -228,7 +230,7 @@ fn mergeSortRecursive(app: *AppState) !void {
 fn mergeSort(app: *AppState) !void {
     const start = sdl.timer.getMillisecondsSinceInit();
     const len: usize = app.data.items.len;
-    if (app.data.items.len < 2) return;
+    if (len < 2) return;
 
     var out = std.ArrayList(u32).init(allocator);
 
@@ -285,6 +287,34 @@ fn mergeSort(app: *AppState) !void {
     }
 
     std.debug.print("Merge Sort took {d} milliseconds.\n", .{sdl.timer.getMillisecondsSinceInit() - start});
+    sdl.events.pump();
+    sdl.events.flush(.key_down);
+}
+
+fn quickSort(app: *AppState) !void {
+    const start = sdl.timer.getMillisecondsSinceInit();
+    const len: usize = app.data.items.len;
+    if (len < 2) return;
+
+    const fns = struct {
+        fn quickSortRecursive(ap: *AppState, first: usize, last: usize) !void {
+            if (first >= last) return;
+            const pivot_i: usize = last;
+            var i: usize = first;
+            while (i < pivot_i) : (i += 1) {
+                if (ap.data.items[i] > ap.data.items[pivot_i]) {
+                    try ap.data.insert(pivot_i, ap.data.orderedRemove(i));
+                    try updateRender(ap);
+                }
+            }
+            if (pivot_i > 0) try quickSortRecursive(ap, first, pivot_i - 1);
+            if (pivot_i < last) try quickSortRecursive(ap, pivot_i + 1, last);
+        }
+    };
+
+    try fns.quickSortRecursive(app, 0, len - 1);
+
+    std.debug.print("Quick Sort took {d} milliseconds.\n", .{sdl.timer.getMillisecondsSinceInit() - start});
     sdl.events.pump();
     sdl.events.flush(.key_down);
 }
