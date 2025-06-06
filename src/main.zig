@@ -29,7 +29,6 @@ pub fn main() !void {
                     .one => try bubbleSort(app),
                     .two => try insertionSort(app),
                     .three => try combSort(app),
-                    .five => try mergeSortRecursive(app),
                     .four => try mergeSort(app),
                     else => {},
                 }
@@ -254,9 +253,8 @@ fn mergeSort(app: *AppState) !void {
                 const b_start: usize = a_start + slice_size;
                 a = app.data.items[a_start..b_start];
                 b = app.data.items[b_start..len];
-            } else { // Enough for one slice.
-                a = app.data.items[a_start..len];
-                b = &.{};
+            } else { // Enough for one slice. Leave as-is.
+                continue;
             }
             //std.debug.print("a({d}):{any}\nb({d}):{any}\n", .{ a.len, a, b.len, b });
 
